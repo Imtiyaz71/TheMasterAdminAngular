@@ -1,0 +1,705 @@
+<!-- TOAST NOTIFICATION -->
+@if (toastMessage()) {
+  <div class="toast-alert">
+    <span>✅ {{ toastMessage() }}</span>
+  </div>
+}
+
+<!-- 1. LOGIN SCREEN (IF NOT LOGGED IN) -->
+@if (!isLoggedIn()) {
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <img src="assets/logo.jpg" alt="The Master Logo" class="brand-login-logo" />
+        <div class="brand-badge">THE MASTER</div>
+        <h2>Enterprise Admin Portal</h2>
+        <p>Sign in to manage courses, students, and Google Drive access permissions</p>
+      </div>
+
+      @if (authError()) {
+        <div class="alert-box error">
+          {{ authError() }}
+        </div>
+      }
+
+      <form (submit)="$event.preventDefault(); login()">
+        <div class="form-group">
+          <label>Admin Email</label>
+          <input type="email" [(ngModel)]="loginEmail" name="email" required placeholder="admin@themaster.com" />
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" [(ngModel)]="loginPassword" name="password" required placeholder="••••••••" />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" [disabled]="authLoading()">
+          {{ authLoading() ? 'Verifying Credentials...' : 'Sign In to Dashboard' }}
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <small>Default Super Admin: <code>admin@themaster.com</code> / <code>Admin@123</code></small>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- 2. MAIN ADMIN PORTAL (WHEN LOGGED IN) -->
+@if (isLoggedIn()) {
+  <div class="admin-layout">
+    <!-- TOP NAVIGATION BAR -->
+    <header class="admin-navbar">
+      <div class="navbar-left">
+        <div class="brand-logo">
+          <img src="assets/logo.jpg" alt="The Master" class="brand-nav-logo" />
+          <span class="brand-name">THE MASTER</span>
+          <span class="role-badge">ADMIN</span>
+        </div>
+        <nav class="nav-links">
+          <button [class.active]="activeTab() === 'dashboard'" (click)="activeTab.set('dashboard')">
+            📊 Overview
+          </button>
+          <button [class.active]="activeTab() === 'courses'" (click)="activeTab.set('courses')">
+            📚 Course Management ({{ courses().length }})
+          </button>
+          <button [class.active]="activeTab() === 'orders'" (click)="activeTab.set('orders')">
+            🛡️ Orders & Drive Access 
+            @if (stats()?.pendingDriveAccess) {
+              <span class="badge-pulse">{{ stats()?.pendingDriveAccess }} Pending</span>
+            }
+          </button>
+          <button [class.active]="activeTab() === 'testimonials'" (click)="activeTab.set('testimonials')">
+            ⭐ সাফল্যের গল্প ({{ testimonials().length }})
+          </button>
+        </nav>
+      </div>
+
+      <div class="navbar-right">
+        <span class="user-greeting">Logged in as <strong>Admin</strong></span>
+        <button class="btn btn-sm btn-outline-danger" (click)="logout()">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY -->
+    <main class="admin-main">
+      <!-- TAB 1: DASHBOARD STATS -->
+      @if (activeTab() === 'dashboard') {
+        <div class="tab-content">
+          <div class="page-heading">
+            <div>
+              <h1>Platform Performance Overview</h1>
+              <p>Real-time analytics for courses, enrollment revenues, and pending Drive access</p>
+            </div>
+            <button class="btn btn-primary" (click)="openCreateCourseModal()">+ Create New Course</button>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon revenue">৳</div>
+              <div class="stat-details">
+                <span class="stat-label">Total Revenue</span>
+                <span class="stat-value">৳ {{ stats()?.totalRevenue | number:'1.2-2' }}</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon orders">📦</div>
+              <div class="stat-details">
+                <span class="stat-label">Total Orders (Paid)</span>
+                <span class="stat-value">{{ stats()?.paidOrders }} / {{ stats()?.totalOrders }}</span>
+              </div>
+            </div>
+
+            <div class="stat-card alert-card">
+              <div class="stat-icon alert">⚠️</div>
+              <div class="stat-details">
+                <span class="stat-label">Drive Access Pending</span>
+                <span class="stat-value text-warning">{{ stats()?.pendingDriveAccess || 0 }}</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon courses">🎓</div>
+              <div class="stat-details">
+                <span class="stat-label">Active Courses</span>
+                <span class="stat-value">{{ stats()?.totalCourses }}</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon students">👥</div>
+              <div class="stat-details">
+                <span class="stat-label">Registered Students</span>
+                <span class="stat-value">{{ stats()?.totalStudents }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT ORDERS QUICK ACCESS -->
+          <div class="section-card mt-4">
+            <div class="section-header">
+              <h2>Recent Student Enrollments & Drive Status</h2>
+              <button class="btn btn-sm btn-outline" (click)="activeTab.set('orders')">View All Orders →</button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Order #</th>
+                    <th>Student Name & Email</th>
+                    <th>Course Title</th>
+                    <th>Amount</th>
+                    <th>Payment</th>
+                    <th>Drive Access Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (order of orders().slice(0, 5); track order.id) {
+                    <tr>
+                      <td><strong>{{ order.orderNumber }}</strong></td>
+                      <td>
+                        <div class="user-cell">
+                          <strong>{{ order.userFullName }}</strong>
+                          <small>{{ order.userEmail }}</small>
+                          @if (order.userPhone) { <small>{{ order.userPhone }}</small> }
+                        </div>
+                      </td>
+                      <td>{{ order.courseTitle }}</td>
+                      <td>৳ {{ order.amount }}</td>
+                      <td>
+                        <span class="badge" [class.badge-success]="order.paymentStatus === 'Paid'" [class.badge-pending]="order.paymentStatus === 'Pending'">
+                          {{ order.paymentStatus }}
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge" [class.badge-success]="order.driveAccessStatus === 'Granted'" [class.badge-warning]="order.driveAccessStatus === 'Pending'">
+                          {{ order.driveAccessStatus }}
+                        </span>
+                      </td>
+                      <td>
+                        @if (order.driveAccessStatus === 'Pending' && order.paymentStatus === 'Paid') {
+                          <button class="btn btn-xs btn-success" (click)="toggleDriveAccess(order, 'Granted')">
+                            ✓ Grant Access
+                          </button>
+                        } @else if (order.driveAccessStatus === 'Granted') {
+                          <button class="btn btn-xs btn-outline" (click)="toggleDriveAccess(order, 'Pending')">
+                            Revoke
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="7" class="text-center py-4">No recent orders yet.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- TAB 2: COURSE MANAGEMENT -->
+      @if (activeTab() === 'courses') {
+        <div class="tab-content">
+          <div class="page-heading">
+            <div>
+              <h1>Course Catalog Management</h1>
+              <p>Configure curriculum, Google Drive secure folder links, video quantities, and pricing</p>
+            </div>
+            <button class="btn btn-primary" (click)="openCreateCourseModal()">+ Add New Course</button>
+          </div>
+
+          <div class="section-card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Title & Subject</th>
+                    <th>Price</th>
+                    <th>Videos</th>
+                    <th>Validity</th>
+                    <th>Google Drive Folder Link</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of courses(); track c.id) {
+                    <tr>
+                      <td>
+                        <strong>{{ c.title }}</strong><br />
+                        <span class="subject-tag">{{ c.subject }}</span>
+                      </td>
+                      <td>
+                        <span class="current-price">৳ {{ c.discountPrice || c.price }}</span>
+                        @if (c.discountPrice) {
+                          <br /><small class="old-price">৳ {{ c.price }}</small>
+                        }
+                      </td>
+                      <td>📹 {{ c.totalVideos }} Videos</td>
+                      <td>⏳ {{ c.validityDays }} Days</td>
+                      <td>
+                        <a [href]="c.driveFolderLink" target="_blank" class="drive-link-badge">
+                          📂 Open Drive Link ↗
+                        </a>
+                      </td>
+                      <td>
+                        <span class="badge" [class.badge-success]="c.isPublished" [class.badge-secondary]="!c.isPublished">
+                          {{ c.isPublished ? 'Published' : 'Draft' }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="action-buttons">
+                          <button class="btn btn-xs btn-outline" (click)="openEditCourseModal(c)">Edit</button>
+                          <button class="btn btn-xs btn-danger" (click)="deleteCourse(c.id)">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="7" class="text-center py-4">No courses available. Click "+ Add New Course" to get started!</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- TAB 3: ORDERS & DRIVE ACCESS MANAGEMENT -->
+      @if (activeTab() === 'orders') {
+        <div class="tab-content">
+          <div class="page-heading">
+            <div>
+              <h1>Student Orders & Google Drive Access Control</h1>
+              <p>Track purchases via SSLCommerz and manage manual permissions on your Google Drive folders</p>
+            </div>
+
+            <!-- FILTER BUTTONS -->
+            <div class="filter-group">
+              <button class="btn btn-sm" [class.btn-primary]="orderFilter() === 'ALL'" (click)="orderFilter.set('ALL')">All Orders</button>
+              <button class="btn btn-sm" [class.btn-warning]="orderFilter() === 'PENDING'" (click)="orderFilter.set('PENDING')">Needs Drive Access ⚠️</button>
+              <button class="btn btn-sm" [class.btn-success]="orderFilter() === 'GRANTED'" (click)="orderFilter.set('GRANTED')">Access Granted ✓</button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Order Details</th>
+                    <th>Student Info</th>
+                    <th>Course</th>
+                    <th>Drive Access Action</th>
+                    <th>Status & Date</th>
+                    <th>Manage Access</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (order of filteredOrders; track order.id) {
+                    <tr [class.highlight-row]="order.driveAccessStatus === 'Pending' && order.paymentStatus === 'Paid'">
+                      <td>
+                        <strong>{{ order.orderNumber }}</strong><br />
+                        <small class="text-muted">TX: {{ order.transactionId || 'N/A' }}</small><br />
+                        <strong>৳ {{ order.amount }}</strong>
+                      </td>
+                      <td>
+                        <div class="student-info-box">
+                          <div class="student-name">{{ order.userFullName }}</div>
+                          <div class="student-email" title="Copy to invite in Google Drive">
+                            📧 <code>{{ order.userEmail }}</code>
+                          </div>
+                          @if (order.userPhone) {
+                            <div class="student-phone">📞 {{ order.userPhone }}</div>
+                          }
+                        </div>
+                      </td>
+                      <td>
+                        <strong>{{ order.courseTitle }}</strong><br />
+                        <a [href]="order.driveFolderLink" target="_blank" class="drive-link-badge">
+                          📂 Open Course Drive Folder ↗
+                        </a>
+                      </td>
+                      <td>
+                        <!-- QUICK DRIVE WORKFLOW -->
+                        <div class="drive-action-container">
+                          @if (order.driveAccessStatus === 'Pending') {
+                            <button class="btn btn-sm btn-success btn-block" (click)="toggleDriveAccess(order, 'Granted')">
+                              ✓ Mark Access Granted
+                            </button>
+                          } @else {
+                            <span class="badge badge-success mb-1">Access Granted</span><br />
+                            <button class="btn btn-xs btn-outline" (click)="toggleDriveAccess(order, 'Pending')">
+                              Set to Pending
+                            </button>
+                          }
+                          <button class="btn btn-xs btn-outline mt-1" (click)="resendEmail(order)" title="Resend course link email to student">
+                            ✉️ Resend Email
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="badge-stack">
+                          <span class="badge" [class.badge-success]="order.paymentStatus === 'Paid'" [class.badge-pending]="order.paymentStatus === 'Pending'">
+                            {{ order.paymentStatus }}
+                          </span>
+                          <span class="badge mt-1" [class.badge-success]="order.driveAccessStatus === 'Granted'" [class.badge-warning]="order.driveAccessStatus === 'Pending'">
+                            Drive: {{ order.driveAccessStatus }}
+                          </span>
+                          <small class="text-muted d-block mt-1">{{ order.createdAt | date:'short' }}</small>
+                        </div>
+                      </td>
+                      <td>
+                        <small class="helper-text">
+                          1. Click folder link.<br />
+                          2. Add <code>{{ order.userEmail }}</code> in Drive.<br />
+                          3. Click "Mark Access Granted".
+                        </small>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="text-center py-4">No orders matching the selected filter.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- TAB 4: TESTIMONIALS / SUCCESS STORIES -->
+      @if (activeTab() === 'testimonials') {
+        <div class="tab-content">
+          <div class="page-heading">
+            <div>
+              <h1>শিক্ষার্থীদের সাফল্যের গল্প (Testimonials Management)</h1>
+              <p>ওয়েবসাইটে প্রদর্শিত শিক্ষার্থীদের রিভিউ, ছবি ও সফলতার বক্তব্য নিয়ন্ত্রণ করুন</p>
+            </div>
+            <button class="btn btn-primary" (click)="openCreateTestimonialModal()">+ নতুন সাফল্যের গল্প যোগ করুন</button>
+          </div>
+
+          <div class="table-card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ক্রম / Order</th>
+                    <th>শিক্ষার্থীর নাম ও ছবি</th>
+                    <th>পদবী / ফ্রিল্যান্সিং ট্র্যাক</th>
+                    <th>সাফল্যের বক্তব্য (Speech)</th>
+                    <th>রেটিং</th>
+                    <th>স্ট্যাটাস</th>
+                    <th>অ্যাকশন</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (t of testimonials(); track t.id) {
+                    <tr>
+                      <td>
+                        <span class="badge badge-subtle">#{{ t.displayOrder }}</span>
+                      </td>
+                      <td>
+                        <div class="user-meta" style="display: flex; align-items: center; gap: 10px;">
+                          @if (t.avatarUrl) {
+                            <img [src]="t.avatarUrl" alt="{{ t.studentName }}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0;" />
+                          } @else {
+                            <div style="width: 44px; height: 44px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                              {{ t.studentName.charAt(0) }}
+                            </div>
+                          }
+                          <div>
+                            <strong>{{ t.studentName }}</strong>
+                            <small class="text-muted d-block">ID: #{{ t.id }}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge badge-info">{{ t.designation }}</span>
+                      </td>
+                      <td style="max-width: 320px;">
+                        <p style="margin: 0; font-size: 0.88rem; line-height: 1.4; color: #475569;" title="{{ t.speech }}">
+                          "{{ t.speech.length > 100 ? (t.speech | slice:0:100) + '...' : t.speech }}"
+                        </p>
+                      </td>
+                      <td>
+                        <span style="color: #f59e0b; font-weight: bold; letter-spacing: 1px;">
+                          {{ '★'.repeat(t.rating) }}
+                        </span>
+                        <small class="text-muted">({{ t.rating }}/5)</small>
+                      </td>
+                      <td>
+                        <button type="button" class="btn btn-xs" [class.btn-success]="t.isActive" [class.btn-outline]="!t.isActive" (click)="toggleTestimonialStatus(t)">
+                          {{ t.isActive ? 'Active (অনলাইন)' : 'Hidden (লুকানো)' }}
+                        </button>
+                      </td>
+                      <td>
+                        <div class="action-buttons">
+                          <button class="btn btn-xs btn-outline" (click)="openEditTestimonialModal(t)">✏️ Edit</button>
+                          <button class="btn btn-xs btn-danger" (click)="deleteTestimonial(t.id)">🗑️ Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="7" class="text-center py-4">কোনো সাফল্যের গল্প এখনো যোগ করা হয়নি। "+ নতুন সাফল্যের গল্প যোগ করুন" বাটনে ক্লিক করুন।</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      }
+    </main>
+  </div>
+}
+
+<!-- MODAL: ADD / EDIT COURSE -->
+@if (showCourseModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <img src="assets/logo.jpg" alt="Logo" class="modal-header-logo" />
+          <h3>{{ isEditingCourse() ? 'Edit Course Details' : 'Create New Skill Training Course' }}</h3>
+        </div>
+        <button class="btn-close" (click)="closeCourseModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label>Course Title *</label>
+            <input type="text" [(ngModel)]="courseForm.title" placeholder="e.g. Masterclass on ASP.NET Core & Angular" />
+          </div>
+
+          <div class="form-group">
+            <label>Subject / Category *</label>
+            <input type="text" [(ngModel)]="courseForm.subject" placeholder="e.g. Software Engineering" />
+          </div>
+
+          <div class="form-group">
+            <label>Google Drive Folder Link * (Secured Video Folder)</label>
+            <input type="url" [(ngModel)]="courseForm.driveFolderLink" placeholder="https://drive.google.com/drive/folders/..." />
+          </div>
+
+          <div class="form-group">
+            <label>Regular Price (BDT) *</label>
+            <input type="number" [(ngModel)]="courseForm.price" />
+          </div>
+
+          <div class="form-group">
+            <label>Discount Price (BDT)</label>
+            <input type="number" [(ngModel)]="courseForm.discountPrice" />
+          </div>
+
+          <div class="form-group">
+            <label>Total Video Quantity</label>
+            <input type="number" [(ngModel)]="courseForm.totalVideos" placeholder="e.g. 50" />
+          </div>
+
+          <div class="form-group">
+            <label>Validity (Days)</label>
+            <input type="number" [(ngModel)]="courseForm.validityDays" placeholder="365" />
+          </div>
+
+          <!-- THUMBNAIL UPLOAD & AUTO-FIT SECTION -->
+          <div class="form-group full-width thumbnail-upload-section">
+            <div class="section-label-row">
+              <label>Course Thumbnail (Image Upload & Auto-Fit)</label>
+              <span class="smart-size-badge">✨ Smart Size: 1280 × 720 px (16:9 Ratio)</span>
+            </div>
+
+            <div class="thumbnail-uploader-box">
+              @if (!courseForm.thumbnailUrl) {
+                <!-- DROPZONE / PICKER -->
+                <div class="dropzone-area" (click)="fileInput.click()">
+                  <input #fileInput type="file" (change)="onThumbnailSelected($event)" accept="image/*" style="display: none;" />
+                  <div class="dropzone-content">
+                    <div class="upload-icon">📸</div>
+                    <h4>Click to Upload Thumbnail Image</h4>
+                    <p>Supported: JPG, PNG, WebP (Max 10MB)</p>
+                    <small class="helper-text-note">যেকোনো সাইজের ছবি আপলোড করতে পারেন, সিস্টেম ১৬:৯ অনুপাতে স্বয়ংক্রিয়ভাবে পারফেক্টলি ফিট (Auto-Fit) করে নিবে।</small>
+                  </div>
+                </div>
+              } @else {
+                <!-- LIVE 16:9 AUTO-FIT PREVIEW -->
+                <div class="thumbnail-preview-card">
+                  <div class="preview-aspect-ratio" [style.background]="thumbnailFitMode() === 'contain' ? '#0f172a' : 'transparent'">
+                    <img 
+                      [src]="courseForm.thumbnailUrl" 
+                      alt="Thumbnail Preview" 
+                      [style.object-fit]="thumbnailFitMode()" 
+                    />
+                    <div class="aspect-badge">16:9 Auto-Fit Preview</div>
+                    @if (isUploadingThumbnail()) {
+                      <div class="upload-overlay">
+                        <span>Uploading & Processing...</span>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="preview-controls">
+                    <div class="fit-toggle">
+                      <span>Auto-Fit Mode:</span>
+                      <button type="button" class="btn btn-xs" [class.btn-primary]="thumbnailFitMode() === 'cover'" (click)="thumbnailFitMode.set('cover')">
+                        Auto Cover (Fill)
+                      </button>
+                      <button type="button" class="btn btn-xs" [class.btn-primary]="thumbnailFitMode() === 'contain'" (click)="thumbnailFitMode.set('contain')">
+                        Full Contain (Letterbox)
+                      </button>
+                    </div>
+
+                    <div class="action-buttons">
+                      <button type="button" class="btn btn-xs btn-outline" (click)="fileInput.click()">Change Image</button>
+                      <button type="button" class="btn btn-xs btn-danger" (click)="removeThumbnail()">Remove</button>
+                      <input #fileInput type="file" (change)="onThumbnailSelected($event)" accept="image/*" style="display: none;" />
+                    </div>
+                  </div>
+                </div>
+              }
+
+              <!-- OPTIONAL DIRECT URL FIELD -->
+              <div class="url-input-fallback mt-2">
+                <small class="text-muted">Or paste direct Image URL:</small>
+                <input type="url" [(ngModel)]="courseForm.thumbnailUrl" placeholder="https://example.com/banner.jpg" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group full-width">
+            <label>Description & Curriculum Highlights</label>
+            <textarea [(ngModel)]="courseForm.description" rows="4" placeholder="Course overview, lessons, and prerequisites..."></textarea>
+          </div>
+
+          <div class="form-group full-width checkbox-group">
+            <label>
+              <input type="checkbox" [(ngModel)]="courseForm.isPublished" />
+              Publish course immediately on website & app
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" (click)="closeCourseModal()">Cancel</button>
+        <button class="btn btn-primary" (click)="saveCourse()">{{ isEditingCourse() ? 'Save Changes' : 'Create Course' }}</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL: ADD / EDIT TESTIMONIAL -->
+@if (showTestimonialModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <img src="assets/logo.jpg" alt="Logo" class="modal-header-logo" />
+          <h3>{{ isEditingTestimonial() ? 'সাফল্যের গল্প এডিট করুন' : 'নতুন সাফল্যের গল্প যোগ করুন' }}</h3>
+        </div>
+        <button class="btn-close" (click)="closeTestimonialModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>শিক্ষার্থীর নাম (Student Name) *</label>
+            <input type="text" [(ngModel)]="testimonialForm.studentName" placeholder="যেমন: তানভীর আহমেদ" />
+          </div>
+
+          <div class="form-group">
+            <label>পদবী / ট্র্যাক (Designation / Track) *</label>
+            <input type="text" [(ngModel)]="testimonialForm.designation" placeholder="যেমন: ডিজিটাল মার্কেটার ও উদ্যোক্তা" />
+          </div>
+
+          <div class="form-group">
+            <label>রেটিং (Rating: 1 থেকে 5)</label>
+            <select [(ngModel)]="testimonialForm.rating" class="form-control" style="width: 100%; padding: 0.6rem; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;">
+              <option [value]="5">⭐⭐⭐⭐⭐ (৫ স্টার - চমৎকার)</option>
+              <option [value]="4">⭐⭐⭐⭐ (৪ স্টার - খুব ভালো)</option>
+              <option [value]="3">⭐⭐⭐ (৩ স্টার - ভালো)</option>
+              <option [value]="2">⭐⭐ (২ স্টার)</option>
+              <option [value]="1">⭐ (১ স্টার)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>প্রদর্শনের ক্রম (Display Order)</label>
+            <input type="number" [(ngModel)]="testimonialForm.displayOrder" placeholder="1, 2, 3..." />
+          </div>
+
+          <!-- AVATAR UPLOAD SECTION -->
+          <div class="form-group full-width thumbnail-upload-section">
+            <div class="section-label-row">
+              <label>শিক্ষার্থীর ছবি / প্রোফাইল ফটো (Avatar Upload)</label>
+              <span class="smart-size-badge">✨ Smart Size: 200 × 200 px (1:1 Ratio)</span>
+            </div>
+
+            <div class="thumbnail-uploader-box">
+              @if (!testimonialForm.avatarUrl) {
+                <div class="dropzone-area" (click)="avatarInput.click()">
+                  <input #avatarInput type="file" (change)="onAvatarSelected($event)" accept="image/*" style="display: none;" />
+                  <div class="dropzone-content">
+                    <div class="upload-icon">👤</div>
+                    <h4>Click to Upload Student Photo</h4>
+                    <p>Supported: JPG, PNG, WebP (Max 5MB)</p>
+                    <small class="helper-text-note">যেকোনো সাইজের প্রোফাইল ছবি দিতে পারেন, সিস্টেম গোল আকারে স্বয়ংক্রিয়ভাবে পারফেক্টলি ফিট করে নিবে।</small>
+                  </div>
+                </div>
+              } @else {
+                <div style="display: flex; align-items: center; gap: 16px; padding: 12px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                  <img [src]="testimonialForm.avatarUrl" alt="Avatar Preview" style="width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 3px solid #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />
+                  <div style="flex: 1;">
+                    <strong style="display: block; color: #1e293b;">শিক্ষার্থীর ফটো প্রিভিউ</strong>
+                    @if (isUploadingAvatar()) {
+                      <span style="color: #2563eb; font-size: 0.85rem;">ছবি আপলোড ও প্রসেসিং হচ্ছে...</span>
+                    } @else {
+                      <span style="color: #10b981; font-size: 0.85rem;">ছবি সফলভাবে যুক্ত হয়েছে!</span>
+                    }
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-xs btn-outline" (click)="avatarInput.click()">Change Photo</button>
+                    <button type="button" class="btn btn-xs btn-danger" (click)="removeAvatar()">Remove</button>
+                    <input #avatarInput type="file" (change)="onAvatarSelected($event)" accept="image/*" style="display: none;" />
+                  </div>
+                </div>
+              }
+
+              <div class="url-input-fallback mt-2">
+                <small class="text-muted">অথবা সরাসরি ফটোর অনলাইন URL দিন:</small>
+                <input type="url" [(ngModel)]="testimonialForm.avatarUrl" placeholder="https://example.com/photo.jpg" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group full-width">
+            <label>শিক্ষার্থীর বক্তব্যের বিস্তারিত (Success Story / Speech) *</label>
+            <textarea [(ngModel)]="testimonialForm.speech" rows="4" placeholder="কোর্স করে কীভাবে উপকৃত হয়েছেন, ক্যারিয়ার বা ফ্রিল্যান্সিংয়ে কী কী অর্জন করেছেন..."></textarea>
+          </div>
+
+          <div class="form-group full-width checkbox-group">
+            <label>
+              <input type="checkbox" [(ngModel)]="testimonialForm.isActive" />
+              ওয়েবসাইটে অবিলম্বে প্রদর্শন করুন (Active & Visible on Website)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" (click)="closeTestimonialModal()">Cancel</button>
+        <button class="btn btn-primary" (click)="saveTestimonial()">{{ isEditingTestimonial() ? 'Save Changes' : 'সাফল্যের গল্প প্রকাশ করুন' }}</button>
+      </div>
+    </div>
+  </div>
+}
